@@ -10,12 +10,17 @@
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; user-select: none; }
         
+        /* Лоадер */
+        #loader-screen { position: fixed; inset: 0; background: rgba(20, 20, 25, 0.4); backdrop-filter: blur(4px); z-index: 999999; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        .loader-box { background: rgba(10, 10, 15, 0.85); padding: 30px; border-radius: 16px; border: 1px solid rgba(0,255,204,0.3); box-shadow: 0 10px 40px rgba(0,0,0,0.8); text-align: center; color: #fff; font-family: sans-serif; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(0,255,204,0.2); border-top-color: #00ffcc; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         .am-wrap { position: relative; width: 100%; height: 100%; min-height: 600px; background-size: cover; background-position: center; overflow: hidden; }
         
         .am-hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 10; }
         .am-hud-left { display: flex; align-items: center; gap: 15px; }
         .am-hud-icon { width: 50px; height: 50px; object-fit: contain; filter: drop-shadow(0 0 8px rgba(255,255,255,0.8)); animation: iconPulse 2s infinite; }
-        
         @keyframes iconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); filter: drop-shadow(0 0 15px #fff); } }
         
         .am-prog-wrap { display: flex; flex-direction: column; gap: 5px; }
@@ -47,7 +52,6 @@
         .am-btn:hover { filter: brightness(1.3); transform: translateY(-2px); }
         .am-hint { font-size: 18px; min-height: 22px; margin: 0; font-weight: bold; text-shadow: 0 0 5px #000; }
 
-        /* Стили для drag & drop слов */
         .wo-pool { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; min-height: 50px; }
         .wo-ans { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; min-height: 60px; border: 2px dashed rgba(255,255,255,0.5); padding: 15px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.3); }
         .wo-chip { background: #333; border: 2px solid #fff; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 20px; font-weight: bold; color: #fff; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
@@ -55,6 +59,15 @@
     </style>
 </head>
 <body>
+
+<div id="loader-screen">
+    <div class="loader-box">
+        <div class="spinner"></div>
+        <div id="loader-text" style="font-weight:bold; font-size:16px;">
+            Без паники — игра публикуется.<br><span style="font-size:12px;color:#aaa;margin-top:8px;display:block;">Минутку... ожидаем ответ сервера</span>
+        </div>
+    </div>
+</div>
 
 <div class="am-wrap" id="am-wrap">
     <div class="am-hud">
@@ -107,7 +120,6 @@ function playSynth(type) {
         gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
         osc.start(t); osc.stop(t + 0.1);
     } else if (type === 'correct') {
-        // Звонкий колокольчик (аккорд)
         [523.25, 659.25, 783.99].forEach((freq, i) => {
             const o = actx.createOscillator(); const g = actx.createGain();
             o.type = 'sine'; o.frequency.value = freq;
@@ -124,7 +136,6 @@ function playSynth(type) {
         gain.gain.linearRampToValueAtTime(0, t + 0.3);
         osc.start(t); osc.stop(t + 0.3);
     } else if (type === 'win') {
-        // Магические переливы
         const notes = [523.25, 587.33, 659.25, 783.99, 1046.50, 1318.51];
         notes.forEach((freq, i) => {
             const o = actx.createOscillator(); const g = actx.createGain();
@@ -137,23 +148,63 @@ function playSynth(type) {
     }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+// ПРАВИЛЬНЫЙ ПУТЬ ДЛЯ ЗАГРУЗКИ ФАЙЛОВ
+const JSON_BASE = "https://nikashum93.github.io/texts/data/";
+
+async function fetchWithRetry(url, retries = 20, delay = 2000) {
+    const textEl = document.getElementById('loader-text');
+    for (let i = 0; i < retries; i++) {
+        try {
+            const res = await fetch(url + "?t=" + new Date().getTime());
+            if (res.ok) return await res.json();
+        } catch(err) {}
+        
+        if (i < retries - 1) {
+            if(i > 1 && textEl) {
+                textEl.innerHTML = `Без паники — игра публикуется.<br><span style="font-size:12px;color:#aaa;display:block;margin-top:8px;">Ждём GitHub (Попытка ${i+1} из ${retries})...</span>`;
+            }
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+    throw new Error('Файл не найден');
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const id = urlParams.get('id');
     const isPreview = urlParams.get('preview');
 
-    if (id && !isPreview) {
-        fetch(`https://nikashum93.github.io/data/${id}.json`)
-            .then(response => response.json())
-            .then(cfg => initAstroMove(cfg))
-            .catch(err => console.error("Ошибка загрузки данных", err));
+    if (isPreview) {
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'MOVE_CFG') {
+                document.getElementById('am-items').innerHTML = '';
+                initAstroMove(e.data.cfg);
+            }
+        });
+        return;
     }
-});
 
-window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'MOVE_CFG') {
-        document.getElementById('am-items').innerHTML = '';
-        initAstroMove(e.data.cfg);
+    if (id) {
+        document.getElementById('loader-screen').style.display = 'flex';
+        try {
+            const res = await fetch(`${JSON_BASE}${encodeURIComponent(id)}.json?t=` + new Date().getTime());
+            if (res.ok) {
+                const cfg = await res.json();
+                document.getElementById('loader-screen').style.display = 'none';
+                initAstroMove(cfg);
+            } else {
+                throw new Error('Not found immediately');
+            }
+        } catch(e) {
+            try {
+                const cfg = await fetchWithRetry(`${JSON_BASE}${encodeURIComponent(id)}.json`);
+                document.getElementById('loader-screen').style.display = 'none';
+                initAstroMove(cfg);
+            } catch(err) {
+                document.getElementById('loader-text').innerHTML = `❌ Ошибка: Файл не найден.`;
+                document.querySelector('.spinner').style.display = 'none';
+            }
+        }
     }
 });
 
@@ -197,13 +248,11 @@ function initAstroMove(cfg) {
 
     const char = document.getElementById('am-char');
     char.src = cfg.char;
-
     document.getElementById('am-hud-icon').src = cfg.item;
 
     let state = { tasks: [...cfg.tasks].sort(() => Math.random() - 0.5), currentIdx: -1, score: 0, combo: 1, completed: 0, mistakes: 0 };
     const itemsCont = document.getElementById('am-items');
 
-    // Раскидываем предметы
     state.tasks.forEach((task, idx) => {
         let img = document.createElement("img");
         img.src = cfg.item; img.className = "am-item";
@@ -216,7 +265,6 @@ function initAstroMove(cfg) {
             img.style.pointerEvents = "none";
             state.currentIdx = idx; state.mistakes = 0;
             
-            // ВЫЧИСЛЕНИЕ УГЛА И ПОЛЕТ (БЕЗ АНИМАЦИИ ПЕРЕВОРОТА)
             let wrapRect = wrap.getBoundingClientRect();
             let charRect = char.getBoundingClientRect();
             let imgRect = img.getBoundingClientRect();
@@ -231,14 +279,12 @@ function initAstroMove(cfg) {
             let isLeft = dx < 0;
             
             let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-            if (isLeft) angle -= 180; // Корректировка угла если картинка отражается
+            if (isLeft) angle -= 180; 
 
-            // Мгновенный поворот
             char.style.transition = 'none';
             char.style.transform = `translate(-50%, -50%) scaleX(${isLeft ? -1 : 1}) rotate(${angle}deg)`;
-            void char.offsetWidth; // Force reflow
+            void char.offsetWidth; 
 
-            // Анимация только позиции
             char.style.transition = 'left 0.8s linear, top 0.8s linear';
             char.style.left = img.style.left;
             char.style.top = img.style.top;
@@ -266,7 +312,6 @@ function initAstroMove(cfg) {
         
         let qContent = task.q;
         
-        // РАЗБОР ФОРМАТОВ
         if (task.type === 'quiz') {
             document.getElementById('am-q').innerHTML = qContent;
             const opts = (task.opt || task.a).split(',').map(s=>s.trim()).sort(() => Math.random() - 0.5);
@@ -280,9 +325,8 @@ function initAstroMove(cfg) {
             checkBtn.style.display = 'none';
         
         } else if (task.type === 'blanks') {
-            // Парсинг: The sky is [blue]
             const regex = /\[(.*?)\]/g;
-            const cleanAnswer = task.a.replace(regex, '$1'); // Для проверки
+            const cleanAnswer = task.a.replace(regex, '$1'); 
             const htmlStr = task.a.replace(regex, `<input type="text" class="am-input blank-input" style="border-color:${ui.border}; color:${ui.border};" autocomplete="off" id="blank-input">`);
             
             document.getElementById('am-q').innerHTML = qContent + "<br><br>" + htmlStr;
@@ -377,7 +421,7 @@ function initAstroMove(cfg) {
             if (state.mistakes === 2) hint.innerText = task.opt ? `Подсказка: ${task.opt}` : `Правильный ответ: ${task.a.replace(/\[|\]/g, '')}`;
             if (state.mistakes >= 3) {
                 hint.innerText = `Запомни: ${task.a.replace(/\[|\]/g, '')}`;
-                if(document.getElementById('am-ans-input')) document.getElementById('am-ans-input').value = task.a;
+                if(document.getElementById('am-ans-input')) document.getElementById('am-ans-input').value = task.a.replace(/\[|\]/g, '');
                 if(document.getElementById('blank-input')) {
                     const match = task.a.match(/\[(.*?)\]/);
                     if(match) document.getElementById('blank-input').value = match[1];

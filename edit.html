@@ -40,7 +40,6 @@ input[type="file"] { padding: 5px; font-size: 11px; color: #aaa; background: #22
 #output-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; align-items: center; justify-content: center; }
 .modal-content { background: #1a1a1a; border: 2px solid var(--primary); padding: 30px; width: 800px; display: flex; flex-direction: column; gap: 15px; }
 #code-output { height: 150px; background: #000; color: #00ffff; font-family: monospace; border: 2px solid var(--primary); }
-
 .status { background: #333; color: #fff; padding: 5px 10px; font-size: 12px; border-radius: 4px; text-align: center; }
 </style>
 </head>
@@ -55,7 +54,7 @@ input[type="file"] { padding: 5px; font-size: 11px; color: #aaa; background: #22
         <div><label>Шрифт</label><select id="font"></select></div>
     </div>
     
-    <div class="section-title">Ассеты (Flat View)</div>
+    <div class="section-title">Ассеты</div>
     <label>Фон (URL / File)</label>
     <div class="row"><input type="url" id="bg-url" placeholder="Прозрачный"><input type="file" id="bg-file" accept="image/*"></div>
     <label>Персонаж (URL / File)</label>
@@ -73,26 +72,20 @@ input[type="file"] { padding: 5px; font-size: 11px; color: #aaa; background: #22
         <div><label>Неон (Свечение)</label><input type="color" id="col-glow" value="#ff00ff"></div>
     </div>
 
-    <div class="section-title">Звуки (URL / File)</div>
-    <label>Клик / Сбор</label>
-    <div class="row"><input type="url" id="snd-click-url"><input type="file" id="snd-click-file" accept="audio/*"></div>
-    <label>Правильно</label>
-    <div class="row"><input type="url" id="snd-correct-url"><input type="file" id="snd-correct-file" accept="audio/*"></div>
-    <label>Ошибка</label>
-    <div class="row"><input type="url" id="snd-wrong-url"><input type="file" id="snd-wrong-file" accept="audio/*"></div>
-    <label>Победа</label>
-    <div class="row"><input type="url" id="snd-win-url"><input type="file" id="snd-win-file" accept="audio/*"></div>
-
     <div class="section-title">Задания (Импорт)</div>
     <div class="instructions">
         Вставь таблицу (разделитель <code>|</code> или `Tab`). MathJax: <code>$x^2$</code>.<br>
-        <b>Типы:</b> <code>quiz, text, image, image_text, type, sentence_order, word_order, blanks</code><br>
-        <b>Формат:</b> Тип | Вопрос/URL | Ответ | Опции (через запятую)
+        <b>Типы:</b> <code>quiz, type, word_order, sentence_order, blanks</code><br>
+        Для <code>blanks</code> ответ пиши так: <code>The sky is [blue]</code>. Движок сам сделает окошко.
     </div>
-    <textarea id="tasks-input">quiz | Choose color | blue | red, green, blue
-type | Write Apple | apple | 
-blanks | Вставь | The sky is [blue] | 
-sentence_order | Собери текст | Раз. Два. Три. |</textarea>
+    <textarea id="tasks-input">quiz | I don't have a car. I wish I ___ a car. | had | have, had, would have
+type | If only I ___ (study) harder for the exam yesterday! | had studied | 
+word_order | Order the words: | I wish you would stop making that noise. | 
+type | I am not tall. I wish I ___ taller. | were | 
+quiz | If only we ___ the map! We are lost now. | had taken | took, have taken, had taken
+blanks | Вставь нужный модальный глагол | I can't swim. I wish I [could] swim. | 
+sentence_order | Order: | I failed my test. If only I had prepared better. I wish I could retake it. | 
+type | I ate too much cake. I wish I ___ eaten so much. (1 word) | hadn't |</textarea>
 
     <div class="section-title">Финал</div>
     <label>Текст победы</label><input type="text" id="fb-text" value="YOU DID IT!">
@@ -128,7 +121,7 @@ sentence_order | Собери текст | Раз. Два. Три. |</textarea>
 <script>
 const ENDPOINT = "https://server-kjnn.onrender.com/publish";
 const PUBLISH_KEY = "nika_read_pub_2025";
-const BASE_GAME = "https://nikashum93.github.io/move/game.html"; // ТВОЙ РЕПОЗИТОРИЙ
+const BASE_GAME = "https://nikashum93.github.io/move/game.html"; 
 
 const FONT_MAP = {
     ru: ["Nunito", "Rubik", "Caveat", "Russo One", "Montserrat", "Comfortaa", "Pacifico", "Lobster", "Amatic SC"],
@@ -159,28 +152,22 @@ function updateFont() {
 }
 fontSel.addEventListener('change', updateFont);
 
-let res = { bg: '', char: '', item: '', s: {} };
+let res = { bg: '', char: '', item: '' };
 
 function f2b(input, key) {
     input.addEventListener('change', e => {
         if(!e.target.files[0]) return;
         const r = new FileReader(); r.readAsDataURL(e.target.files[0]);
-        r.onload = () => { if(key.startsWith('s.')) res.s[key.split('.')[1]] = r.result; else res[key] = r.result; };
+        r.onload = () => { res[key] = r.result; };
     });
 }
 function u2r(input, key) {
-    input.addEventListener('input', e => {
-        if(key.startsWith('s.')) res.s[key.split('.')[1]] = e.target.value; else res[key] = e.target.value;
-    });
+    input.addEventListener('input', e => { res[key] = e.target.value; });
 }
 
 f2b(document.getElementById('bg-file'), 'bg'); u2r(document.getElementById('bg-url'), 'bg');
 f2b(document.getElementById('char-file'), 'char'); u2r(document.getElementById('char-url'), 'char');
 f2b(document.getElementById('item-file'), 'item'); u2r(document.getElementById('item-url'), 'item');
-f2b(document.getElementById('snd-click-file'), 's.click'); u2r(document.getElementById('snd-click-url'), 's.click');
-f2b(document.getElementById('snd-correct-file'), 's.correct'); u2r(document.getElementById('snd-correct-url'), 's.correct');
-f2b(document.getElementById('snd-wrong-file'), 's.wrong'); u2r(document.getElementById('snd-wrong-url'), 's.wrong');
-f2b(document.getElementById('snd-win-file'), 's.win'); u2r(document.getElementById('snd-win-url'), 's.win');
 
 function collectConfig() {
     const raw = document.getElementById('tasks-input').value.trim().split('\n');
@@ -194,32 +181,22 @@ function collectConfig() {
         bg: res.bg || document.getElementById('bg-url').value,
         char: res.char || document.getElementById('char-url').value,
         item: res.item || document.getElementById('item-url').value,
-        ui: { 
-            border: document.getElementById('col-border').value, 
-            bg: document.getElementById('col-bg').value, 
-            text: document.getElementById('col-text').value, 
-            glow: document.getElementById('col-glow').value 
-        },
+        ui: { border: document.getElementById('col-border').value, bg: document.getElementById('col-bg').value, text: document.getElementById('col-text').value, glow: document.getElementById('col-glow').value },
         fb: { text: document.getElementById('fb-text').value, pass: document.getElementById('fb-pass').value },
-        sounds: res.s, tasks: tasks
+        tasks: tasks
     };
 }
 
-// ПРЕДПРОСМОТР ЧЕРЕЗ POSTMESSAGE
+// Загружаем IFRAME сразу, чтобы он ждал postMessage
+const pr = document.getElementById('preview-iframe');
+pr.src = BASE_GAME + "?preview=1";
+
 document.getElementById('btn-preview').addEventListener('click', () => {
     const cfg = collectConfig();
     if (cfg.tasks.length === 0) return alert('Добавь хотя бы одно задание!');
-    
-    const pr = document.getElementById('preview-iframe');
-    pr.src = BASE_GAME + "?preview=1"; // Открываем движок в режиме превью
-    
-    // Ждем загрузки iframe и шлем конфиг
-    pr.onload = () => {
-        pr.contentWindow.postMessage({ type: 'MOVE_CFG', cfg: cfg }, '*');
-    };
+    pr.contentWindow.postMessage({ type: 'MOVE_CFG', cfg: cfg }, '*');
 });
 
-// ПУБЛИКАЦИЯ
 document.getElementById('btn-pub').addEventListener('click', async () => {
     const cfg = collectConfig();
     if (cfg.tasks.length === 0) return alert('Добавь хотя бы одно задание!');
@@ -240,7 +217,6 @@ document.getElementById('btn-pub').addEventListener('click', async () => {
         });
         if (!req.ok) throw new Error('Ошибка сервера');
 
-        // ЧИСТЫЙ IFRAME КОД
         const out = `<iframe src="${BASE_GAME}?id=${id}" width="100%" height="100%" style="border:none; min-height:600px; width:100%; height:100%; background:transparent;" allow="autoplay; fullscreen"></iframe>`;
         
         document.getElementById('code-output').value = out;

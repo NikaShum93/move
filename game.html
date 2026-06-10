@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astro Move</title>
+    <script>
+    window.MathJax = { tex: { inlineMath: [['$','$'],['\\$','\\$']] }, startup: { typeset: false } };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; user-select: none; }
+        
+        /* Строго плоский фронтальный дизайн */
+        .am-wrap { position: relative; width: 100%; height: 100%; min-height: 600px; background-size: cover; background-position: center; overflow: hidden; }
+        .am-hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; z-index: 10; }
+        .am-score { font-size: 26px; font-weight: bold; text-shadow: 0 0 5px rgba(0,0,0,0.8); }
+        .am-combo { font-size: 22px; margin-top: 5px; opacity: 0; transition: opacity 0.3s; font-weight: bold; }
+        .am-combo.active { opacity: 1; }
+        .am-prog-bg { width: 250px; height: 25px; background: rgba(0,0,0,0.8); border: 3px solid #fff; overflow: hidden; }
+        .am-prog-fill { height: 100%; width: 0%; background: #fff; transition: width 0.5s ease-out; }
+
+        .am-item { position: absolute; width: 80px; height: 80px; cursor: pointer; transform: translate(-50%, -50%); transition: transform 0.2s; z-index: 5; }
+        .am-item:hover { transform: translate(-50%, -50%) scale(1.15); }
+        .am-char { position: absolute; width: 200px; height: 200px; top: 50%; left: 10%; transform: translate(-50%, -50%); transition: left 0.8s ease-in-out, top 0.8s ease-in-out, transform 0.8s ease-in-out; z-index: 15; pointer-events: none; }
+
+        .am-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 20; }
+        .am-overlay.active { opacity: 1; pointer-events: auto; }
+        .am-modal { border: 4px solid #fff; padding: 40px 50px; text-align: center; position: relative; min-width: 450px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+
+        .am-title { font-size: 28px; font-weight: bold; margin: 0; word-break: break-word; }
+        .am-input { width: 100%; padding: 15px; font-size: 24px; text-align: center; font-weight: bold; background: #000; border: 2px solid #fff; color: #fff; outline: none; border-radius: 0; }
+        .am-btn { width: 100%; padding: 15px; font-size: 20px; font-weight: bold; background: #000; color: #fff; border: 2px solid #fff; cursor: pointer; transition: 0.2s; text-transform: uppercase; border-radius: 0; }
+        .am-btn:hover { background: #333; }
+        .am-hint { font-size: 16px; min-height: 20px; margin: 0; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="am-wrap" id="am-wrap">
+    <div class="am-hud">
+        <div>
+            <div class="am-score" id="am-score-txt">Energy: <span id="am-score">0</span></div>
+            <div class="am-combo" id="am-combo">Combo: x1</div>
+        </div>
+        <div class="am-prog-bg" id="am-prog-bg"><div class="am-prog-fill" id="am-fill"></div></div>
+    </div>
+    <div id="am-items" style="position:absolute; inset:0;"></div>
+    <img class="am-char" id="am-char" src="" alt="">
+    
+    <div class="am-overlay" id="am-task-overlay">
+        <div class="am-modal" id="am-task-modal">
+            <div class="am-title" id="am-q"></div>
+            <div id="am-task-content" style="width:100%; display:flex; flex-direction:column; gap:10px; align-items:center;"></div>
+            <div class="am-hint" id="am-hint"></div>
+            <button class="am-btn" id="am-check">Проверить</button>
+        </div>
+    </div>
+
+    <div class="am-overlay" id="am-vic-overlay">
+        <div class="am-modal" id="am-vic-modal">
+            <h1 class="am-title" id="am-vic-txt" style="font-size:42px;"></h1>
+            <div style="font-size:28px; margin:10px 0;">Score: <span id="am-final-score" style="font-weight:bold;">0</span></div>
+            <div id="am-vic-pass" style="display:none; background:#000; padding:15px; border:2px solid #fff; font-family:monospace; font-size:24px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+    
+    if (id) {
+        fetch(`https://nikashum93.github.io/data/${id}.json`)
+            .then(response => response.json())
+            .then(cfg => initAstroMove(cfg))
+            .catch(err => console.error("Ошибка загрузки данных", err));
+    }
+});
+
+function initAstroMove(cfg) {
+    const wrap = document.getElementById('am-wrap');
+    if(cfg.bg) wrap.style.backgroundImage = `url(${cfg.bg})`;
+    
+    // Подгрузка шрифта
+    if (cfg.font) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `https://fonts.googleapis.com/css2?family=${cfg.font.replace(/ /g,'+')}:wght@400;700&display=swap`;
+        document.head.appendChild(link);
+        wrap.style.fontFamily = `"${cfg.font}", sans-serif`;
+    }
+
+    const ui = cfg.ui || {};
+    document.getElementById('am-score-txt').style.color = ui.text;
+    document.getElementById('am-combo').style.color = ui.glow;
+    document.getElementById('am-prog-bg').style.borderColor = ui.border;
+    document.getElementById('am-fill').style.background = ui.glow;
+    
+    const modals = document.querySelectorAll('.am-modal');
+    modals.forEach(m => {
+        m.style.background = ui.bg;
+        m.style.borderColor = ui.border;
+        m.style.boxShadow = `0 0 15px ${ui.glow}`;
+    });
+    
+    document.getElementById('am-q').style.color = ui.text;
+    document.getElementById('am-hint').style.color = ui.glow;
+    document.getElementById('am-vic-txt').innerText = cfg.fb.text;
+    document.getElementById('am-vic-txt').style.color = ui.text;
+    
+    if(cfg.fb.pass) {
+        const p = document.getElementById('am-vic-pass');
+        p.style.display = 'block'; p.innerText = `Пароль: ${cfg.fb.pass}`;
+        p.style.borderColor = ui.glow; p.style.color = ui.glow;
+    }
+
+    const char = document.getElementById('am-char');
+    char.src = cfg.char;
+
+    let state = { tasks: [...cfg.tasks].sort(() => Math.random() - 0.5), currentIdx: -1, score: 0, combo: 1, completed: 0, mistakes: 0 };
+    const itemsCont = document.getElementById('am-items');
+
+    function playAudio(type) {
+        if(cfg.sounds && cfg.sounds[type]) {
+            const a = new Audio(cfg.sounds[type]); a.play().catch(()=>{});
+        }
+    }
+
+    state.tasks.forEach((task, idx) => {
+        let img = document.createElement("img");
+        img.src = cfg.item; img.className = "am-item";
+        img.style.left = (30 + Math.random() * 60) + "%";
+        img.style.top = (20 + Math.random() * 60) + "%";
+        img.style.filter = `drop-shadow(0 0 5px ${ui.glow})`;
+        
+        img.onclick = () => {
+            playAudio('click');
+            img.style.pointerEvents = "none";
+            state.currentIdx = idx; state.mistakes = 0;
+            
+            let isGoingLeft = img.getBoundingClientRect().left < char.getBoundingClientRect().left;
+            char.style.left = img.style.left; char.style.top = img.style.top;
+            char.style.transform = `translate(-50%, -50%) scaleX(${isGoingLeft ? -1 : 1})`;
+            
+            setTimeout(() => {
+                img.style.transform = "translate(-50%, -50%) scale(0)";
+                setTimeout(() => { img.style.display = "none"; openTask(idx); }, 200);
+            }, 800);
+        };
+        itemsCont.appendChild(img);
+    });
+
+    const overTask = document.getElementById('am-task-overlay');
+    const content = document.getElementById('am-task-content');
+    const checkBtn = document.getElementById('am-check');
+    checkBtn.style.borderColor = ui.border; checkBtn.style.background = ui.bg;
+
+    function openTask(idx) {
+        const task = state.tasks[idx];
+        
+        let qContent = task.q;
+        if (task.type === 'image' || task.type === 'image_text') {
+            const urlMatch = task.q.match(/https?:\/\/[^\s]+/);
+            if (urlMatch) {
+                const imgTag = `<img src="${urlMatch[0]}" style="max-width:100%; max-height:200px; object-fit:contain; margin-bottom:10px;">`;
+                qContent = task.type === 'image' ? imgTag : imgTag + '<br>' + task.q.replace(urlMatch[0], '');
+            }
+        }
+        
+        document.getElementById('am-q').innerHTML = qContent;
+        document.getElementById('am-hint').innerText = "";
+        content.innerHTML = "";
+        
+        if (task.type === 'quiz') {
+            const opts = (task.opt || task.a).split(',').map(s=>s.trim()).sort(() => Math.random() - 0.5);
+            opts.forEach(o => {
+                let b = document.createElement('button');
+                b.className = 'am-btn'; b.innerHTML = o;
+                b.style.borderColor = ui.border;
+                b.onclick = () => processAnswer(o.toLowerCase() === task.a.toLowerCase());
+                content.appendChild(b);
+            });
+            checkBtn.style.display = 'none';
+        } else if (task.type === 'sentence_order' || task.type === 'word_order') {
+            content.innerHTML = `<div style="color:${ui.text}; margin-bottom:10px;">Введи правильный порядок:</div><input type="text" class="am-input" id="am-ans-input" autocomplete="off">`;
+            document.getElementById('am-ans-input').style.borderColor = ui.border;
+            checkBtn.style.display = 'block';
+        } else {
+            content.innerHTML = `<input type="text" class="am-input" id="am-ans-input" autocomplete="off">`;
+            document.getElementById('am-ans-input').style.borderColor = ui.border;
+            checkBtn.style.display = 'block';
+            setTimeout(() => { const inp = document.getElementById('am-ans-input'); if(inp) inp.focus(); }, 100);
+        }
+        
+        if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([document.getElementById('am-task-modal')]).catch(()=>{});
+        overTask.classList.add("active");
+    }
+
+    checkBtn.onclick = () => {
+        const inp = document.getElementById('am-ans-input');
+        if(inp) processAnswer(inp.value.trim().toLowerCase() === state.tasks[state.currentIdx].a.toLowerCase());
+    };
+
+    function processAnswer(isCorrect) {
+        const task = state.tasks[state.currentIdx];
+        if (isCorrect || state.mistakes >= 3) {
+            overTask.classList.remove("active");
+            playAudio('correct');
+            if(isCorrect) { state.score += (10 * state.combo); state.combo++; }
+            document.getElementById('am-score').innerText = state.score;
+            
+            const cmb = document.getElementById('am-combo');
+            if(state.combo > 1) { cmb.innerText = `Combo: x${state.combo}`; cmb.classList.add("active"); }
+            else { cmb.classList.remove("active"); }
+            
+            state.completed++;
+            document.getElementById('am-fill').style.width = `${(state.completed / state.tasks.length) * 100}%`;
+            
+            if (state.completed >= state.tasks.length) {
+                setTimeout(() => {
+                    char.style.left = "150%"; playAudio('win');
+                    document.getElementById('am-vic-overlay').classList.add("active");
+                    document.getElementById('am-final-score').innerText = state.score;
+                    document.getElementById('am-final-score').style.color = ui.glow;
+                }, 1000);
+            }
+        } else {
+            playAudio('wrong');
+            state.combo = 1; document.getElementById('am-combo').classList.remove("active"); state.mistakes++;
+            
+            const hint = document.getElementById('am-hint');
+            if (state.mistakes === 2) hint.innerText = task.opt ? `Подсказка: ${task.opt}` : `Ответ: ${task.a}`;
+            if (state.mistakes >= 3) {
+                hint.innerText = `Правильный ответ: ${task.a}`;
+                const inp = document.getElementById('am-ans-input'); if(inp) inp.value = task.a;
+            }
+        }
+    }
+    
+    overTask.addEventListener("keypress", (e) => { if(e.key === "Enter" && checkBtn.style.display !== 'none') checkBtn.click(); });
+}
+</script>
+</body>
+</html>

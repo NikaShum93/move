@@ -4,22 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Astro Move — Редактор</title>
-<link id="gf" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap">
-<script>
-window.MathJax = { tex: { inlineMath: [['$','$'],['\\$','\\$']] }, startup: { typeset: false } };
-</script>
+<link id="gf" rel="stylesheet" href="">
+<script>window.MathJax = { tex: { inlineMath: [['$','$'],['\\$','\\$']] }, startup: { typeset: false } };</script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 <style>
 :root { --primary: #00ffff; --secondary: #ff00ff; --bg: #111; }
-*, *::before, *::after { box-sizing: border-box; }
-body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Nunito', sans-serif; background: var(--bg); color: #fff; overflow: hidden; display: flex; }
+* { box-sizing: border-box; }
+body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: sans-serif; background: var(--bg); color: #fff; overflow: hidden; display: flex; }
 
 #settings-panel { width: 450px; height: 100%; background: #1a1a1a; border-right: 2px solid var(--secondary); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; z-index: 10; }
 #settings-panel::-webkit-scrollbar { width: 6px; }
 #settings-panel::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 3px; }
 
-#preview-area { flex: 1; background: repeating-conic-gradient(#1a1a1a 0% 25%, #111 0% 50%) 50%/20px 20px; position: relative; display: flex; align-items: center; justify-content: center; }
-#game-frame { width: 1280px; height: 720px; border: 2px dashed rgba(0, 255, 255, 0.3); position: relative; transform-origin: center center; background-size: cover; background-position: center; }
+#preview-area { flex: 1; background: repeating-conic-gradient(#1a1a1a 0% 25%, #111 0% 50%) 50%/20px 20px; position: relative; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.iframe-wrapper { width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; border: 2px dashed rgba(0, 255, 255, 0.3); border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+.iframe-wrapper iframe { width: 100%; height: 100%; border: none; }
 
 .section-title { color: var(--primary); text-transform: uppercase; font-weight: bold; border-bottom: 2px solid var(--secondary); padding-bottom: 5px; margin-top: 15px; font-size: 14px; }
 label { display: block; font-size: 11px; color: #ccc; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
@@ -34,25 +33,26 @@ input[type="file"] { padding: 5px; font-size: 11px; color: #aaa; background: #22
 .instructions { background: rgba(255,255,255,0.05); padding: 15px; font-size: 12px; line-height: 1.6; border: 1px dashed #555; margin-bottom: 10px; }
 .instructions b { color: var(--primary); }
 
-.action-btn { background: var(--secondary); border: 2px solid var(--primary); color: #fff; padding: 15px; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+.action-btn { background: var(--secondary); border: 2px solid var(--primary); color: #fff; padding: 15px; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.2s; box-shadow: 0 0 10px rgba(255,0,255,0.4); margin-top: 10px; }
 .action-btn:hover { background: #FF1493; transform: scale(1.02); }
+.btn-ghost { background: transparent; color: var(--primary); border-color: var(--primary); box-shadow: none; }
 
 #output-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; align-items: center; justify-content: center; }
 .modal-content { background: #1a1a1a; border: 2px solid var(--primary); padding: 30px; width: 800px; display: flex; flex-direction: column; gap: 15px; }
 #code-output { height: 150px; background: #000; color: #00ffff; font-family: monospace; border: 2px solid var(--primary); }
 
-.flat-hud { position: absolute; top: 20px; left: 20px; font-size: 26px; font-weight: bold; color: #FFD700; text-shadow: 0 0 5px #000; }
+.status { background: #333; color: #fff; padding: 5px 10px; font-size: 12px; border-radius: 4px; text-align: center; }
 </style>
 </head>
 <body>
 
 <div id="settings-panel">
-    <h2 style="color:var(--primary); margin:0; text-transform:uppercase;">Редактор</h2>
+    <h2 style="color:var(--primary); margin:0; text-transform:uppercase;">Astro Move</h2>
     
     <div class="section-title">Язык и Шрифты</div>
     <div class="row">
-        <div><label>Язык</label><select id="lang"><option value="ru">Русский</option><option value="en">English</option></select></div>
-        <div><label>Шрифт</label><select id="font"><option value="Nunito">Nunito</option><option value="Russo One">Russo One</option><option value="Rubik">Rubik</option></select></div>
+        <div><label>Язык</label><select id="lang"></select></div>
+        <div><label>Шрифт</label><select id="font"></select></div>
     </div>
     
     <div class="section-title">Ассеты (Flat View)</div>
@@ -85,36 +85,37 @@ input[type="file"] { padding: 5px; font-size: 11px; color: #aaa; background: #22
 
     <div class="section-title">Задания (Импорт)</div>
     <div class="instructions">
-        Вставь таблицу (разделитель <code>|</code> или `Tab`). Формулы MathJax: <code>$x^2$</code>.<br>
+        Вставь таблицу (разделитель <code>|</code> или `Tab`). MathJax: <code>$x^2$</code>.<br>
         <b>Типы:</b> <code>quiz, text, image, image_text, type, sentence_order, word_order, blanks</code><br>
-        <b>Формат:</b> Тип | Вопрос/URL | Правильный ответ | Опции квиза (через запятую)
+        <b>Формат:</b> Тип | Вопрос/URL | Ответ | Опции (через запятую)
     </div>
     <textarea id="tasks-input">quiz | Choose color | blue | red, green, blue
 type | Write Apple | apple | 
-blanks | Вставь слово | The sky is [blue] | 
+blanks | Вставь | The sky is [blue] | 
 sentence_order | Собери текст | Раз. Два. Три. |</textarea>
 
     <div class="section-title">Финал</div>
     <label>Текст победы</label><input type="text" id="fb-text" value="YOU DID IT!">
     <label>Пароль (опционально)</label><input type="text" id="fb-pass" placeholder="Например: 3434">
 
+    <div style="flex-grow: 1;"></div>
+    <div id="status-txt" class="status" style="display:none;"></div>
+    <button class="action-btn btn-ghost" id="btn-preview">🔄 Обновить превью</button>
     <button class="action-btn" id="btn-pub">🚀 Сгенерировать IFRAME</button>
 </div>
 
 <div id="preview-area">
-    <div id="game-frame">
-        <div class="flat-hud">ENERGY: 0</div>
-        <img id="prev-char" src="https://media.tenor.com/7PyjPoFb_ZUAAAAi/halloween-happy-halloween.gif" style="position: absolute; top: 50%; left: 15%; width: 180px; transform: translate(-50%, -50%);">
-        <img id="prev-item" src="https://media.tenor.com/5jGPR7PgBeAAAAAi/star-sparkle.gif" style="position: absolute; top: 30%; left: 60%; width: 80px; transform: translate(-50%, -50%);">
+    <div class="iframe-wrapper">
+        <iframe id="preview-iframe"></iframe>
     </div>
 </div>
 
 <div id="output-modal">
     <div class="modal-content">
-        <h3 style="color:var(--primary);margin-top:0;">Код для вставки (IFRAME)</h3>
+        <h3 style="color:var(--primary);margin-top:0;">Готово! IFRAME сгенерирован</h3>
         <div class="instructions">
             <b>Для Genially:</b> Скопируй код ниже и вставь через Insert → Others → Iframe. <br>
-            Движок будет подтянут из репозитория <code>move</code>. Не забудь подождать 30-60 сек для обновления кэша GitHub.
+            Движок подтянется из твоего репозитория <code>move</code>. Жди 30-60 сек для обновления кэша GitHub.
         </div>
         <textarea id="code-output" readonly onclick="this.select()"></textarea>
         <div class="row">
@@ -127,77 +128,110 @@ sentence_order | Собери текст | Раз. Два. Три. |</textarea>
 <script>
 const ENDPOINT = "https://server-kjnn.onrender.com/publish";
 const PUBLISH_KEY = "nika_read_pub_2025";
-const BASE_GAME = "https://nikashum93.github.io/move/game.html";
+const BASE_GAME = "https://nikashum93.github.io/move/game.html"; // ТВОЙ РЕПОЗИТОРИЙ
 
-function resizePreview() {
-    const scale = Math.min((window.innerWidth - 450) / 1280, window.innerHeight / 720) * 0.9;
-    document.getElementById('game-frame').style.transform = `scale(${scale})`;
-}
-window.addEventListener('resize', resizePreview); resizePreview();
+const FONT_MAP = {
+    ru: ["Nunito", "Rubik", "Caveat", "Russo One", "Montserrat", "Comfortaa", "Pacifico", "Lobster", "Amatic SC"],
+    en: ["Nunito", "Quicksand", "Fredoka One", "Bangers", "Creepster", "Righteous", "Orbitron", "Indie Flower"],
+    es: ["Nunito", "Ubuntu", "Pacifico", "Permanent Marker", "Merienda"],
+    fr: ["Nunito", "Dancing Script", "Cinzel", "Josefin Sans", "Playfair Display"],
+    de: ["Nunito", "Oswald", "Bebas Neue", "Fira Sans", "Anton"],
+    it: ["Nunito", "Montserrat", "Great Vibes", "Tangerine", "Cinzel"],
+    zh: ["Noto Sans SC", "Zhi Mang Xing", "Ma Shan Zheng", "Liu Jian Mao Cao"],
+    ja: ["Noto Sans JP", "Yusei Magic", "Reggae One", "Train One"]
+};
 
-document.getElementById('font').addEventListener('change', e => {
-    document.getElementById('gf').href = `https://fonts.googleapis.com/css2?family=${e.target.value.replace(/ /g,'+')}:wght@400;700&display=swap`;
+const LANG_NAMES = { ru:"Русский", en:"English", es:"Español", fr:"Français", de:"Deutsch", it:"Italiano", zh:"中文", ja:"日本語" };
+
+const langSel = document.getElementById('lang');
+const fontSel = document.getElementById('font');
+
+langSel.innerHTML = Object.keys(FONT_MAP).map(k => `<option value="${k}">${LANG_NAMES[k]}</option>`).join('');
+langSel.addEventListener('change', () => { 
+    fontSel.innerHTML = (FONT_MAP[langSel.value]||FONT_MAP.en).map(f => `<option value="${f}">${f}</option>`).join('');
+    updateFont();
 });
-document.getElementById('font').dispatchEvent(new Event('change'));
+langSel.dispatchEvent(new Event('change'));
+
+function updateFont() {
+    const f = fontSel.value;
+    document.getElementById('gf').href = `https://fonts.googleapis.com/css2?family=${f.replace(/ /g,'+')}:wght@400;700&display=swap`;
+}
+fontSel.addEventListener('change', updateFont);
 
 let res = { bg: '', char: '', item: '', s: {} };
 
-function f2b(input, key, prevId) {
+function f2b(input, key) {
     input.addEventListener('change', e => {
         if(!e.target.files[0]) return;
         const r = new FileReader(); r.readAsDataURL(e.target.files[0]);
-        r.onload = () => { 
-            if(key.startsWith('s.')) res.s[key.split('.')[1]] = r.result; else res[key] = r.result;
-            if(prevId) {
-                if(prevId === 'bg') document.getElementById('game-frame').style.backgroundImage = `url(${r.result})`;
-                else document.getElementById(prevId).src = r.result;
-            }
-        };
+        r.onload = () => { if(key.startsWith('s.')) res.s[key.split('.')[1]] = r.result; else res[key] = r.result; };
     });
 }
-function u2r(input, key, prevId) {
+function u2r(input, key) {
     input.addEventListener('input', e => {
         if(key.startsWith('s.')) res.s[key.split('.')[1]] = e.target.value; else res[key] = e.target.value;
-        if(prevId) {
-            if(prevId === 'bg') document.getElementById('game-frame').style.backgroundImage = `url(${e.target.value})`;
-            else document.getElementById(prevId).src = e.target.value;
-        }
     });
 }
 
-f2b(document.getElementById('bg-file'), 'bg', 'bg'); u2r(document.getElementById('bg-url'), 'bg', 'bg');
-f2b(document.getElementById('char-file'), 'char', 'prev-char'); u2r(document.getElementById('char-url'), 'char', 'prev-char');
-f2b(document.getElementById('item-file'), 'item', 'prev-item'); u2r(document.getElementById('item-url'), 'item', 'prev-item');
+f2b(document.getElementById('bg-file'), 'bg'); u2r(document.getElementById('bg-url'), 'bg');
+f2b(document.getElementById('char-file'), 'char'); u2r(document.getElementById('char-url'), 'char');
+f2b(document.getElementById('item-file'), 'item'); u2r(document.getElementById('item-url'), 'item');
 f2b(document.getElementById('snd-click-file'), 's.click'); u2r(document.getElementById('snd-click-url'), 's.click');
 f2b(document.getElementById('snd-correct-file'), 's.correct'); u2r(document.getElementById('snd-correct-url'), 's.correct');
 f2b(document.getElementById('snd-wrong-file'), 's.wrong'); u2r(document.getElementById('snd-wrong-url'), 's.wrong');
 f2b(document.getElementById('snd-win-file'), 's.win'); u2r(document.getElementById('snd-win-url'), 's.win');
 
-document.getElementById('btn-pub').addEventListener('click', async () => {
+function collectConfig() {
     const raw = document.getElementById('tasks-input').value.trim().split('\n');
     const tasks = raw.map(l => {
         const p = l.split(/\||\t/).map(s=>s.trim());
         return p.length > 1 ? { type: p[0], q: p[1], a: p[2]||'', opt: p[3]||'' } : null;
     }).filter(t => t);
 
-    if (tasks.length === 0) return alert('Добавь хотя бы одно задание!');
-
-    const cfg = {
-        lang: document.getElementById('lang').value, font: document.getElementById('font').value,
+    return {
+        lang: langSel.value, font: fontSel.value,
         bg: res.bg || document.getElementById('bg-url').value,
         char: res.char || document.getElementById('char-url').value,
         item: res.item || document.getElementById('item-url').value,
-        ui: { border: document.getElementById('col-border').value, bg: document.getElementById('col-bg').value, text: document.getElementById('col-text').value, glow: document.getElementById('col-glow').value },
+        ui: { 
+            border: document.getElementById('col-border').value, 
+            bg: document.getElementById('col-bg').value, 
+            text: document.getElementById('col-text').value, 
+            glow: document.getElementById('col-glow').value 
+        },
         fb: { text: document.getElementById('fb-text').value, pass: document.getElementById('fb-pass').value },
         sounds: res.s, tasks: tasks
     };
+}
+
+// ПРЕДПРОСМОТР ЧЕРЕЗ POSTMESSAGE
+document.getElementById('btn-preview').addEventListener('click', () => {
+    const cfg = collectConfig();
+    if (cfg.tasks.length === 0) return alert('Добавь хотя бы одно задание!');
+    
+    const pr = document.getElementById('preview-iframe');
+    pr.src = BASE_GAME + "?preview=1"; // Открываем движок в режиме превью
+    
+    // Ждем загрузки iframe и шлем конфиг
+    pr.onload = () => {
+        pr.contentWindow.postMessage({ type: 'MOVE_CFG', cfg: cfg }, '*');
+    };
+});
+
+// ПУБЛИКАЦИЯ
+document.getElementById('btn-pub').addEventListener('click', async () => {
+    const cfg = collectConfig();
+    if (cfg.tasks.length === 0) return alert('Добавь хотя бы одно задание!');
 
     const d = new Date(); const stamp = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}-${d.getHours()}${d.getMinutes()}${d.getSeconds()}`;
     const id = `move-${stamp}`;
 
     const btn = document.getElementById('btn-pub');
-    const oldText = btn.textContent;
-    btn.textContent = 'Публикую...';
+    const status = document.getElementById('status-txt');
+    btn.style.pointerEvents = 'none';
+    status.style.display = 'block';
+    status.innerText = 'Публикую на сервер...';
 
     try {
         const req = await fetch(ENDPOINT, {
@@ -206,14 +240,18 @@ document.getElementById('btn-pub').addEventListener('click', async () => {
         });
         if (!req.ok) throw new Error('Ошибка сервера');
 
+        // ЧИСТЫЙ IFRAME КОД
         const out = `<iframe src="${BASE_GAME}?id=${id}" width="100%" height="100%" style="border:none; min-height:600px; width:100%; height:100%; background:transparent;" allow="autoplay; fullscreen"></iframe>`;
         
         document.getElementById('code-output').value = out;
         document.getElementById('output-modal').style.display = 'flex';
+        status.innerText = 'Успешно!';
     } catch(e) { 
+        status.innerText = 'Ошибка!';
         alert('Ошибка публикации: ' + e.message); 
     } finally {
-        btn.textContent = oldText;
+        btn.style.pointerEvents = 'auto';
+        setTimeout(() => status.style.display = 'none', 3000);
     }
 });
 </script>

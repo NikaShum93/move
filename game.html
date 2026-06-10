@@ -1,235 +1,393 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Astro Move — Редактор</title>
-<link id="gf" rel="stylesheet" href="">
-<script>window.MathJax = { tex: { inlineMath: [['$','$'],['\\$','\\$']] }, startup: { typeset: false } };</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-<style>
-:root { --primary: #00ffff; --secondary: #ff00ff; --bg: #111; }
-* { box-sizing: border-box; }
-body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: sans-serif; background: var(--bg); color: #fff; overflow: hidden; display: flex; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astro Move</title>
+    <script>window.MathJax = { tex: { inlineMath: [['$','$'],['\\$','\\$']] }, startup: { typeset: false } };</script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; user-select: none; }
+        
+        .am-wrap { position: relative; width: 100%; height: 100%; min-height: 600px; background-size: cover; background-position: center; overflow: hidden; }
+        
+        .am-hud { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 10; }
+        .am-hud-left { display: flex; align-items: center; gap: 15px; }
+        .am-hud-icon { width: 50px; height: 50px; object-fit: contain; filter: drop-shadow(0 0 8px rgba(255,255,255,0.8)); animation: iconPulse 2s infinite; }
+        
+        @keyframes iconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); filter: drop-shadow(0 0 15px #fff); } }
+        
+        .am-prog-wrap { display: flex; flex-direction: column; gap: 5px; }
+        .am-prog-bg { width: 250px; height: 25px; background: rgba(0,0,0,0.6); border: 3px solid #fff; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: relative; }
+        .am-prog-fill { height: 100%; width: 0%; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+        .am-prog-fill::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent); animation: shine 2s infinite; }
+        @keyframes shine { to { left: 200%; } }
+        
+        @keyframes comboGlow { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.1); filter: brightness(1.5); } }
+        .am-combo { font-size: 26px; opacity: 0; transition: opacity 0.3s; font-weight: 900; text-transform: uppercase; color: #fff; text-shadow: 0 0 10px #000; }
+        .am-combo.active { opacity: 1; animation: comboGlow 1.5s infinite; }
 
-#settings-panel { width: 450px; height: 100%; background: #1a1a1a; border-right: 2px solid var(--secondary); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; z-index: 10; }
-#settings-panel::-webkit-scrollbar { width: 6px; }
-#settings-panel::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 3px; }
+        .am-item { position: absolute; width: 80px; height: 80px; cursor: pointer; transform: translate(-50%, -50%); transition: transform 0.2s; z-index: 5; }
+        .am-item:hover { transform: translate(-50%, -50%) scale(1.2); filter: brightness(1.2); }
+        .am-char { position: absolute; width: 200px; height: 200px; top: 50%; left: 10%; transform: translate(-50%, -50%); z-index: 15; pointer-events: none; }
 
-#preview-area { flex: 1; background: repeating-conic-gradient(#1a1a1a 0% 25%, #111 0% 50%) 50%/20px 20px; position: relative; display: flex; align-items: center; justify-content: center; padding: 20px; }
-.iframe-wrapper { width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; border: 2px dashed rgba(0, 255, 255, 0.3); border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
-.iframe-wrapper iframe { width: 100%; height: 100%; border: none; }
+        .am-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 20; backdrop-filter: blur(4px); }
+        .am-overlay.active { opacity: 1; pointer-events: auto; }
+        .am-modal { border: 4px solid #fff; padding: 40px 50px; text-align: center; position: relative; min-width: 500px; max-width: 90%; display: flex; flex-direction: column; align-items: center; gap: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        .am-modal.shake { animation: shake 0.4s ease-in-out; border-color: #ff3333 !important; box-shadow: 0 0 30px rgba(255,0,0,0.8) !important; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
 
-.section-title { color: var(--primary); text-transform: uppercase; font-weight: bold; border-bottom: 2px solid var(--secondary); padding-bottom: 5px; margin-top: 15px; font-size: 14px; }
-label { display: block; font-size: 11px; color: #ccc; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
-input, select, textarea { width: 100%; background: #000; border: 2px solid #333; color: #fff; padding: 10px; font-family: inherit; margin-bottom: 10px; font-size: 13px; }
-input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: none; }
-textarea { resize: vertical; min-height: 120px; font-family: monospace; }
-.row { display: flex; gap: 10px; }
-.row > * { flex: 1; min-width: 0; }
-input[type="color"] { padding: 0; cursor: pointer; height: 40px; }
-input[type="file"] { padding: 5px; font-size: 11px; color: #aaa; background: #222; border: 1px dashed #555; cursor: pointer; }
+        .am-title { font-size: 28px; font-weight: bold; margin: 0; line-height: 1.3; }
+        
+        .am-input { width: 100%; padding: 15px; font-size: 24px; text-align: center; font-weight: bold; background: #000; border: 2px solid #fff; color: #fff; outline: none; border-radius: 8px; }
+        .blank-input { width: 150px; display: inline-block; margin: 0 10px; padding: 5px 10px; border-radius: 4px; border-width: 2px; }
+        
+        .am-btn { width: 100%; padding: 15px; font-size: 20px; font-weight: bold; background: #000; color: #fff; border: 2px solid #fff; cursor: pointer; transition: 0.2s; text-transform: uppercase; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .am-btn:hover { filter: brightness(1.3); transform: translateY(-2px); }
+        .am-hint { font-size: 18px; min-height: 22px; margin: 0; font-weight: bold; text-shadow: 0 0 5px #000; }
 
-.instructions { background: rgba(255,255,255,0.05); padding: 15px; font-size: 12px; line-height: 1.6; border: 1px dashed #555; margin-bottom: 10px; }
-.instructions b { color: var(--primary); }
-
-.action-btn { background: var(--secondary); border: 2px solid var(--primary); color: #fff; padding: 15px; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: 0.2s; box-shadow: 0 0 10px rgba(255,0,255,0.4); margin-top: 10px; }
-.action-btn:hover { background: #FF1493; transform: scale(1.02); }
-.btn-ghost { background: transparent; color: var(--primary); border-color: var(--primary); box-shadow: none; }
-
-#output-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; align-items: center; justify-content: center; }
-.modal-content { background: #1a1a1a; border: 2px solid var(--primary); padding: 30px; width: 800px; display: flex; flex-direction: column; gap: 15px; }
-#code-output { height: 150px; background: #000; color: #00ffff; font-family: monospace; border: 2px solid var(--primary); }
-.status { background: #333; color: #fff; padding: 5px 10px; font-size: 12px; border-radius: 4px; text-align: center; }
-</style>
+        /* Стили для drag & drop слов */
+        .wo-pool { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; min-height: 50px; }
+        .wo-ans { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; min-height: 60px; border: 2px dashed rgba(255,255,255,0.5); padding: 15px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.3); }
+        .wo-chip { background: #333; border: 2px solid #fff; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-size: 20px; font-weight: bold; color: #fff; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .wo-chip:hover { transform: scale(1.05); filter: brightness(1.2); }
+    </style>
 </head>
 <body>
 
-<div id="settings-panel">
-    <h2 style="color:var(--primary); margin:0; text-transform:uppercase;">Astro Move</h2>
-    
-    <div class="section-title">Язык и Шрифты</div>
-    <div class="row">
-        <div><label>Язык</label><select id="lang"></select></div>
-        <div><label>Шрифт</label><select id="font"></select></div>
-    </div>
-    
-    <div class="section-title">Ассеты</div>
-    <label>Фон (URL / File)</label>
-    <div class="row"><input type="url" id="bg-url" placeholder="Прозрачный"><input type="file" id="bg-file" accept="image/*"></div>
-    <label>Персонаж (URL / File)</label>
-    <div class="row"><input type="url" id="char-url" value="https://media.tenor.com/7PyjPoFb_ZUAAAAi/halloween-happy-halloween.gif"><input type="file" id="char-file" accept="image/*"></div>
-    <label>Предмет сбора (URL / File)</label>
-    <div class="row"><input type="url" id="item-url" value="https://media.tenor.com/5jGPR7PgBeAAAAAi/star-sparkle.gif"><input type="file" id="item-file" accept="image/*"></div>
-    
-    <div class="section-title">Настройки Цвета</div>
-    <div class="row">
-        <div><label>Рамка</label><input type="color" id="col-border" value="#FFD700"></div>
-        <div><label>Подложка</label><input type="color" id="col-bg" value="#4b0082"></div>
-    </div>
-    <div class="row">
-        <div><label>Текст</label><input type="color" id="col-text" value="#ffffff"></div>
-        <div><label>Неон (Свечение)</label><input type="color" id="col-glow" value="#ff00ff"></div>
-    </div>
-
-    <div class="section-title">Задания (Импорт)</div>
-    <div class="instructions">
-        Вставь таблицу (разделитель <code>|</code> или `Tab`). MathJax: <code>$x^2$</code>.<br>
-        <b>Типы:</b> <code>quiz, type, word_order, sentence_order, blanks</code><br>
-        Для <code>blanks</code> ответ пиши так: <code>The sky is [blue]</code>. Движок сам сделает окошко.
-    </div>
-    <textarea id="tasks-input">quiz | I don't have a car. I wish I ___ a car. | had | have, had, would have
-type | If only I ___ (study) harder for the exam yesterday! | had studied | 
-word_order | Order the words: | I wish you would stop making that noise. | 
-type | I am not tall. I wish I ___ taller. | were | 
-quiz | If only we ___ the map! We are lost now. | had taken | took, have taken, had taken
-blanks | Вставь нужный модальный глагол | I can't swim. I wish I [could] swim. | 
-sentence_order | Order: | I failed my test. If only I had prepared better. I wish I could retake it. | 
-type | I ate too much cake. I wish I ___ eaten so much. (1 word) | hadn't |</textarea>
-
-    <div class="section-title">Финал</div>
-    <label>Текст победы</label><input type="text" id="fb-text" value="YOU DID IT!">
-    <label>Пароль (опционально)</label><input type="text" id="fb-pass" placeholder="Например: 3434">
-
-    <div style="flex-grow: 1;"></div>
-    <div id="status-txt" class="status" style="display:none;"></div>
-    <button class="action-btn btn-ghost" id="btn-preview">🔄 Обновить превью</button>
-    <button class="action-btn" id="btn-pub">🚀 Сгенерировать IFRAME</button>
-</div>
-
-<div id="preview-area">
-    <div class="iframe-wrapper">
-        <iframe id="preview-iframe"></iframe>
-    </div>
-</div>
-
-<div id="output-modal">
-    <div class="modal-content">
-        <h3 style="color:var(--primary);margin-top:0;">Готово! IFRAME сгенерирован</h3>
-        <div class="instructions">
-            <b>Для Genially:</b> Скопируй код ниже и вставь через Insert → Others → Iframe. <br>
-            Движок подтянется из твоего репозитория <code>move</code>. Жди 30-60 сек для обновления кэша GitHub.
+<div class="am-wrap" id="am-wrap">
+    <div class="am-hud">
+        <div class="am-hud-left">
+            <img id="am-hud-icon" class="am-hud-icon" src="">
+            <div class="am-prog-wrap">
+                <div class="am-prog-bg" id="am-prog-bg"><div class="am-prog-fill" id="am-fill"></div></div>
+            </div>
         </div>
-        <textarea id="code-output" readonly onclick="this.select()"></textarea>
-        <div class="row">
-            <button class="action-btn" onclick="document.execCommand('copy')">📋 Скопировать</button>
-            <button class="action-btn" style="background:#444; border-color:#fff;" onclick="document.getElementById('output-modal').style.display='none'">✕ Закрыть</button>
+        <div class="am-combo" id="am-combo">Combo: x1</div>
+    </div>
+    <div id="am-items" style="position:absolute; inset:0;"></div>
+    <img class="am-char" id="am-char" src="" alt="">
+    
+    <div class="am-overlay" id="am-task-overlay">
+        <div class="am-modal" id="am-task-modal">
+            <div class="am-title" id="am-q"></div>
+            <div id="am-task-content" style="width:100%; display:flex; flex-direction:column; gap:15px; align-items:center;"></div>
+            <div class="am-hint" id="am-hint"></div>
+            <button class="am-btn" id="am-check">Проверить</button>
+        </div>
+    </div>
+
+    <div class="am-overlay" id="am-vic-overlay">
+        <div class="am-modal" id="am-vic-modal">
+            <h1 class="am-title" id="am-vic-txt" style="font-size:48px; text-transform:uppercase;"></h1>
+            <div style="font-size:32px; margin:10px 0; color:#fff;">Score: <span id="am-final-score" style="font-weight:900;">0</span></div>
+            <div id="am-vic-pass" style="display:none; background:#000; padding:15px 30px; border:2px dashed #fff; font-family:monospace; font-size:28px; border-radius:8px;"></div>
         </div>
     </div>
 </div>
 
 <script>
-const ENDPOINT = "https://server-kjnn.onrender.com/publish";
-const PUBLISH_KEY = "nika_read_pub_2025";
-const BASE_GAME = "https://nikashum93.github.io/move/game.html"; 
+// --- СИНТЕЗАТОР ЗВУКОВ ---
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+const actx = new AudioContext();
 
-const FONT_MAP = {
-    ru: ["Nunito", "Rubik", "Caveat", "Russo One", "Montserrat", "Comfortaa", "Pacifico", "Lobster", "Amatic SC"],
-    en: ["Nunito", "Quicksand", "Fredoka One", "Bangers", "Creepster", "Righteous", "Orbitron", "Indie Flower"],
-    es: ["Nunito", "Ubuntu", "Pacifico", "Permanent Marker", "Merienda"],
-    fr: ["Nunito", "Dancing Script", "Cinzel", "Josefin Sans", "Playfair Display"],
-    de: ["Nunito", "Oswald", "Bebas Neue", "Fira Sans", "Anton"],
-    it: ["Nunito", "Montserrat", "Great Vibes", "Tangerine", "Cinzel"],
-    zh: ["Noto Sans SC", "Zhi Mang Xing", "Ma Shan Zheng", "Liu Jian Mao Cao"],
-    ja: ["Noto Sans JP", "Yusei Magic", "Reggae One", "Train One"]
-};
+function playSynth(type) {
+    if (actx.state === 'suspended') actx.resume();
+    const t = actx.currentTime;
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.connect(gain); gain.connect(actx.destination);
 
-const LANG_NAMES = { ru:"Русский", en:"English", es:"Español", fr:"Français", de:"Deutsch", it:"Italiano", zh:"中文", ja:"日本語" };
-
-const langSel = document.getElementById('lang');
-const fontSel = document.getElementById('font');
-
-langSel.innerHTML = Object.keys(FONT_MAP).map(k => `<option value="${k}">${LANG_NAMES[k]}</option>`).join('');
-langSel.addEventListener('change', () => { 
-    fontSel.innerHTML = (FONT_MAP[langSel.value]||FONT_MAP.en).map(f => `<option value="${f}">${f}</option>`).join('');
-    updateFont();
-});
-langSel.dispatchEvent(new Event('change'));
-
-function updateFont() {
-    const f = fontSel.value;
-    document.getElementById('gf').href = `https://fonts.googleapis.com/css2?family=${f.replace(/ /g,'+')}:wght@400;700&display=swap`;
-}
-fontSel.addEventListener('change', updateFont);
-
-let res = { bg: '', char: '', item: '' };
-
-function f2b(input, key) {
-    input.addEventListener('change', e => {
-        if(!e.target.files[0]) return;
-        const r = new FileReader(); r.readAsDataURL(e.target.files[0]);
-        r.onload = () => { res[key] = r.result; };
-    });
-}
-function u2r(input, key) {
-    input.addEventListener('input', e => { res[key] = e.target.value; });
-}
-
-f2b(document.getElementById('bg-file'), 'bg'); u2r(document.getElementById('bg-url'), 'bg');
-f2b(document.getElementById('char-file'), 'char'); u2r(document.getElementById('char-url'), 'char');
-f2b(document.getElementById('item-file'), 'item'); u2r(document.getElementById('item-url'), 'item');
-
-function collectConfig() {
-    const raw = document.getElementById('tasks-input').value.trim().split('\n');
-    const tasks = raw.map(l => {
-        const p = l.split(/\||\t/).map(s=>s.trim());
-        return p.length > 1 ? { type: p[0], q: p[1], a: p[2]||'', opt: p[3]||'' } : null;
-    }).filter(t => t);
-
-    return {
-        lang: langSel.value, font: fontSel.value,
-        bg: res.bg || document.getElementById('bg-url').value,
-        char: res.char || document.getElementById('char-url').value,
-        item: res.item || document.getElementById('item-url').value,
-        ui: { border: document.getElementById('col-border').value, bg: document.getElementById('col-bg').value, text: document.getElementById('col-text').value, glow: document.getElementById('col-glow').value },
-        fb: { text: document.getElementById('fb-text').value, pass: document.getElementById('fb-pass').value },
-        tasks: tasks
-    };
-}
-
-// Загружаем IFRAME сразу, чтобы он ждал postMessage
-const pr = document.getElementById('preview-iframe');
-pr.src = BASE_GAME + "?preview=1";
-
-document.getElementById('btn-preview').addEventListener('click', () => {
-    const cfg = collectConfig();
-    if (cfg.tasks.length === 0) return alert('Добавь хотя бы одно задание!');
-    pr.contentWindow.postMessage({ type: 'MOVE_CFG', cfg: cfg }, '*');
-});
-
-document.getElementById('btn-pub').addEventListener('click', async () => {
-    const cfg = collectConfig();
-    if (cfg.tasks.length === 0) return alert('Добавь хотя бы одно задание!');
-
-    const d = new Date(); const stamp = `${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}-${d.getHours()}${d.getMinutes()}${d.getSeconds()}`;
-    const id = `move-${stamp}`;
-
-    const btn = document.getElementById('btn-pub');
-    const status = document.getElementById('status-txt');
-    btn.style.pointerEvents = 'none';
-    status.style.display = 'block';
-    status.innerText = 'Публикую на сервер...';
-
-    try {
-        const req = await fetch(ENDPOINT, {
-            method: 'POST', headers: { 'Content-Type':'application/json', 'X-Publish-Key': PUBLISH_KEY },
-            body: JSON.stringify({ id, mode:'json', folder:'data', content: JSON.stringify(cfg, null, 2) })
+    if (type === 'click') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, t);
+        osc.frequency.exponentialRampToValueAtTime(1000, t + 0.1);
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.start(t); osc.stop(t + 0.1);
+    } else if (type === 'correct') {
+        // Звонкий колокольчик (аккорд)
+        [523.25, 659.25, 783.99].forEach((freq, i) => {
+            const o = actx.createOscillator(); const g = actx.createGain();
+            o.type = 'sine'; o.frequency.value = freq;
+            o.connect(g); g.connect(actx.destination);
+            g.gain.setValueAtTime(0.2, t + (i*0.05));
+            g.gain.exponentialRampToValueAtTime(0.01, t + 0.5 + (i*0.05));
+            o.start(t + (i*0.05)); o.stop(t + 0.6 + (i*0.05));
         });
-        if (!req.ok) throw new Error('Ошибка сервера');
+    } else if (type === 'wrong') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, t);
+        osc.frequency.exponentialRampToValueAtTime(100, t + 0.3);
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.linearRampToValueAtTime(0, t + 0.3);
+        osc.start(t); osc.stop(t + 0.3);
+    } else if (type === 'win') {
+        // Магические переливы
+        const notes = [523.25, 587.33, 659.25, 783.99, 1046.50, 1318.51];
+        notes.forEach((freq, i) => {
+            const o = actx.createOscillator(); const g = actx.createGain();
+            o.type = 'sine'; o.frequency.value = freq;
+            o.connect(g); g.connect(actx.destination);
+            g.gain.setValueAtTime(0.2, t + (i*0.1));
+            g.gain.exponentialRampToValueAtTime(0.01, t + 1.0 + (i*0.1));
+            o.start(t + (i*0.1)); o.stop(t + 1.0 + (i*0.1));
+        });
+    }
+}
 
-        const out = `<iframe src="${BASE_GAME}?id=${id}" width="100%" height="100%" style="border:none; min-height:600px; width:100%; height:100%; background:transparent;" allow="autoplay; fullscreen"></iframe>`;
-        
-        document.getElementById('code-output').value = out;
-        document.getElementById('output-modal').style.display = 'flex';
-        status.innerText = 'Успешно!';
-    } catch(e) { 
-        status.innerText = 'Ошибка!';
-        alert('Ошибка публикации: ' + e.message); 
-    } finally {
-        btn.style.pointerEvents = 'auto';
-        setTimeout(() => status.style.display = 'none', 3000);
+document.addEventListener("DOMContentLoaded", () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+    const isPreview = urlParams.get('preview');
+
+    if (id && !isPreview) {
+        fetch(`https://nikashum93.github.io/data/${id}.json`)
+            .then(response => response.json())
+            .then(cfg => initAstroMove(cfg))
+            .catch(err => console.error("Ошибка загрузки данных", err));
     }
 });
+
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'MOVE_CFG') {
+        document.getElementById('am-items').innerHTML = '';
+        initAstroMove(e.data.cfg);
+    }
+});
+
+function initAstroMove(cfg) {
+    const wrap = document.getElementById('am-wrap');
+    if(cfg.bg) wrap.style.backgroundImage = `url(${cfg.bg})`;
+    
+    if (cfg.font) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `https://fonts.googleapis.com/css2?family=${cfg.font.replace(/ /g,'+')}:wght@400;700&display=swap`;
+        document.head.appendChild(link);
+        wrap.style.fontFamily = `"${cfg.font}", sans-serif`;
+    }
+
+    const ui = cfg.ui || {};
+    document.getElementById('am-combo').style.color = ui.glow;
+    document.getElementById('am-combo').style.textShadow = `0 0 10px ${ui.glow}`;
+    document.getElementById('am-prog-bg').style.borderColor = ui.border;
+    document.getElementById('am-fill').style.background = ui.glow;
+    document.getElementById('am-fill').style.boxShadow = `0 0 15px ${ui.glow}`;
+    
+    const modals = document.querySelectorAll('.am-modal');
+    modals.forEach(m => {
+        m.style.background = ui.bg;
+        m.style.borderColor = ui.border;
+        m.style.boxShadow = `0 0 30px ${ui.glow}`;
+    });
+    
+    document.getElementById('am-q').style.color = ui.text;
+    document.getElementById('am-hint').style.color = ui.glow;
+    document.getElementById('am-vic-txt').innerText = cfg.fb.text;
+    document.getElementById('am-vic-txt').style.color = ui.text;
+    document.getElementById('am-vic-txt').style.textShadow = `0 0 15px ${ui.glow}`;
+    
+    if(cfg.fb.pass) {
+        const p = document.getElementById('am-vic-pass');
+        p.style.display = 'block'; p.innerText = `Пароль: ${cfg.fb.pass}`;
+        p.style.borderColor = ui.border; p.style.color = ui.glow;
+    }
+
+    const char = document.getElementById('am-char');
+    char.src = cfg.char;
+
+    document.getElementById('am-hud-icon').src = cfg.item;
+
+    let state = { tasks: [...cfg.tasks].sort(() => Math.random() - 0.5), currentIdx: -1, score: 0, combo: 1, completed: 0, mistakes: 0 };
+    const itemsCont = document.getElementById('am-items');
+
+    // Раскидываем предметы
+    state.tasks.forEach((task, idx) => {
+        let img = document.createElement("img");
+        img.src = cfg.item; img.className = "am-item";
+        img.style.left = (15 + Math.random() * 70) + "%";
+        img.style.top = (25 + Math.random() * 65) + "%";
+        img.style.filter = `drop-shadow(0 0 8px ${ui.glow})`;
+        
+        img.onclick = () => {
+            playSynth('click');
+            img.style.pointerEvents = "none";
+            state.currentIdx = idx; state.mistakes = 0;
+            
+            // ВЫЧИСЛЕНИЕ УГЛА И ПОЛЕТ (БЕЗ АНИМАЦИИ ПЕРЕВОРОТА)
+            let wrapRect = wrap.getBoundingClientRect();
+            let charRect = char.getBoundingClientRect();
+            let imgRect = img.getBoundingClientRect();
+
+            let cX = charRect.left + charRect.width/2 - wrapRect.left;
+            let cY = charRect.top + charRect.height/2 - wrapRect.top;
+            let tX = imgRect.left + imgRect.width/2 - wrapRect.left;
+            let tY = imgRect.top + imgRect.height/2 - wrapRect.top;
+
+            let dx = tX - cX;
+            let dy = tY - cY;
+            let isLeft = dx < 0;
+            
+            let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            if (isLeft) angle -= 180; // Корректировка угла если картинка отражается
+
+            // Мгновенный поворот
+            char.style.transition = 'none';
+            char.style.transform = `translate(-50%, -50%) scaleX(${isLeft ? -1 : 1}) rotate(${angle}deg)`;
+            void char.offsetWidth; // Force reflow
+
+            // Анимация только позиции
+            char.style.transition = 'left 0.8s linear, top 0.8s linear';
+            char.style.left = img.style.left;
+            char.style.top = img.style.top;
+            
+            setTimeout(() => {
+                img.style.transform = "translate(-50%, -50%) scale(0)";
+                setTimeout(() => { img.style.display = "none"; openTask(idx); }, 200);
+            }, 800);
+        };
+        itemsCont.appendChild(img);
+    });
+
+    const overTask = document.getElementById('am-task-overlay');
+    const content = document.getElementById('am-task-content');
+    const checkBtn = document.getElementById('am-check');
+    checkBtn.style.borderColor = ui.border; checkBtn.style.color = ui.border;
+
+    let currentOrder = [];
+
+    function openTask(idx) {
+        const task = state.tasks[idx];
+        document.getElementById('am-hint').innerText = "";
+        content.innerHTML = "";
+        currentOrder = [];
+        
+        let qContent = task.q;
+        
+        // РАЗБОР ФОРМАТОВ
+        if (task.type === 'quiz') {
+            document.getElementById('am-q').innerHTML = qContent;
+            const opts = (task.opt || task.a).split(',').map(s=>s.trim()).sort(() => Math.random() - 0.5);
+            opts.forEach(o => {
+                let b = document.createElement('button');
+                b.className = 'am-btn'; b.innerHTML = o;
+                b.style.borderColor = ui.border; b.style.color = ui.border;
+                b.onclick = () => processAnswer(o.toLowerCase() === task.a.toLowerCase());
+                content.appendChild(b);
+            });
+            checkBtn.style.display = 'none';
+        
+        } else if (task.type === 'blanks') {
+            // Парсинг: The sky is [blue]
+            const regex = /\[(.*?)\]/g;
+            const cleanAnswer = task.a.replace(regex, '$1'); // Для проверки
+            const htmlStr = task.a.replace(regex, `<input type="text" class="am-input blank-input" style="border-color:${ui.border}; color:${ui.border};" autocomplete="off" id="blank-input">`);
+            
+            document.getElementById('am-q').innerHTML = qContent + "<br><br>" + htmlStr;
+            checkBtn.style.display = 'block';
+            setTimeout(() => { const i = document.getElementById('blank-input'); if(i) i.focus(); }, 100);
+
+        } else if (task.type === 'word_order' || task.type === 'sentence_order') {
+            document.getElementById('am-q').innerHTML = qContent;
+            const items = task.type === 'word_order' ? task.a.trim().split(' ') : task.a.trim().split(/(?<=[.?!])\s+/);
+            const shuffled = [...items].sort(() => Math.random() - 0.5);
+            
+            const pool = document.createElement('div'); pool.className = 'wo-pool';
+            const ansBox = document.createElement('div'); ansBox.className = 'wo-ans';
+            ansBox.style.borderColor = ui.border;
+
+            shuffled.forEach((word, i) => {
+                let chip = document.createElement('div');
+                chip.className = 'wo-chip'; chip.innerText = word;
+                chip.style.borderColor = ui.border;
+                chip.onclick = () => {
+                    if(chip.parentElement === pool) { ansBox.appendChild(chip); currentOrder.push(word); }
+                    else { pool.appendChild(chip); currentOrder = currentOrder.filter(w => w !== word); }
+                };
+                pool.appendChild(chip);
+            });
+            content.appendChild(ansBox); content.appendChild(pool);
+            checkBtn.style.display = 'block';
+
+        } else {
+            document.getElementById('am-q').innerHTML = qContent;
+            content.innerHTML = `<input type="text" class="am-input" id="am-ans-input" autocomplete="off">`;
+            document.getElementById('am-ans-input').style.borderColor = ui.border;
+            document.getElementById('am-ans-input').style.color = ui.border;
+            checkBtn.style.display = 'block';
+            setTimeout(() => { const inp = document.getElementById('am-ans-input'); if(inp) inp.focus(); }, 100);
+        }
+        
+        if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([document.getElementById('am-task-modal')]).catch(()=>{});
+        overTask.classList.add("active");
+    }
+
+    checkBtn.onclick = () => {
+        const task = state.tasks[state.currentIdx];
+        if (task.type === 'word_order' || task.type === 'sentence_order') {
+            const sep = task.type === 'word_order' ? ' ' : ' ';
+            processAnswer(currentOrder.join(sep).toLowerCase().replace(/\s+/g,'') === task.a.toLowerCase().replace(/\s+/g,''));
+        } else if (task.type === 'blanks') {
+            const inp = document.getElementById('blank-input');
+            const regex = /\[(.*?)\]/;
+            const match = task.a.match(regex);
+            const correctAns = match ? match[1].toLowerCase().trim() : '';
+            if(inp) processAnswer(inp.value.toLowerCase().trim() === correctAns);
+        } else {
+            const inp = document.getElementById('am-ans-input');
+            if(inp) processAnswer(inp.value.trim().toLowerCase() === task.a.toLowerCase());
+        }
+    };
+
+    function processAnswer(isCorrect) {
+        const task = state.tasks[state.currentIdx];
+        if (isCorrect || state.mistakes >= 3) {
+            overTask.classList.remove("active");
+            playSynth('correct');
+            
+            if(isCorrect) { state.score += (10 * state.combo); state.combo++; }
+            document.getElementById('am-score').innerText = state.score;
+            
+            const cmb = document.getElementById('am-combo');
+            if(state.combo > 1) { cmb.innerText = `Combo: x${state.combo}`; cmb.classList.add("active"); }
+            else { cmb.classList.remove("active"); }
+            
+            state.completed++;
+            document.getElementById('am-fill').style.width = `${(state.completed / state.tasks.length) * 100}%`;
+            
+            if (state.completed >= state.tasks.length) {
+                setTimeout(() => {
+                    char.style.transform = `translate(-50%, -50%) scaleX(1) rotate(0deg)`;
+                    char.style.left = "150%"; playSynth('win');
+                    document.getElementById('am-vic-overlay').classList.add("active");
+                    document.getElementById('am-final-score').innerText = state.score;
+                    document.getElementById('am-final-score').style.color = ui.glow;
+                }, 1000);
+            }
+        } else {
+            playSynth('wrong');
+            state.combo = 1; document.getElementById('am-combo').classList.remove("active"); state.mistakes++;
+            
+            const m = document.getElementById('am-task-modal');
+            m.classList.remove('shake'); void m.offsetWidth; m.classList.add('shake');
+            
+            const hint = document.getElementById('am-hint');
+            if (state.mistakes === 2) hint.innerText = task.opt ? `Подсказка: ${task.opt}` : `Правильный ответ: ${task.a.replace(/\[|\]/g, '')}`;
+            if (state.mistakes >= 3) {
+                hint.innerText = `Запомни: ${task.a.replace(/\[|\]/g, '')}`;
+                if(document.getElementById('am-ans-input')) document.getElementById('am-ans-input').value = task.a;
+                if(document.getElementById('blank-input')) {
+                    const match = task.a.match(/\[(.*?)\]/);
+                    if(match) document.getElementById('blank-input').value = match[1];
+                }
+            }
+        }
+    }
+    
+    overTask.addEventListener("keypress", (e) => { if(e.key === "Enter" && checkBtn.style.display !== 'none') checkBtn.click(); });
+}
 </script>
 </body>
 </html>

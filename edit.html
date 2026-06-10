@@ -121,7 +121,7 @@ type | I ate too much cake. I wish I ___ eaten so much. (1 word) | hadn't |</tex
 <script>
 const ENDPOINT = "https://server-kjnn.onrender.com/publish";
 const PUBLISH_KEY = "nika_read_pub_2025";
-const BASE_GAME = "https://nikashum93.github.io/move/game.html"; 
+const BASE_GAME = "https://nikashum93.github.io/move/game.html"; // Движок
 
 const FONT_MAP = {
     ru: ["Nunito", "Rubik", "Caveat", "Russo One", "Montserrat", "Comfortaa", "Pacifico", "Lobster", "Amatic SC"],
@@ -187,7 +187,6 @@ function collectConfig() {
     };
 }
 
-// Загружаем IFRAME сразу, чтобы он ждал postMessage
 const pr = document.getElementById('preview-iframe');
 pr.src = BASE_GAME + "?preview=1";
 
